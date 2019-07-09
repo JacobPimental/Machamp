@@ -51,6 +51,15 @@ class Machamp:
         #print(string)
         return bytes(string, 'UTF-8')
 
+    def form_machamp_function_string(self, function):
+        f = self.r2.cmdj('afij @ {}'.format(function))[0]
+        nargs = (-1 if 'nargs' not in f.keys()
+                 else f['nargs'])
+        nlocals = (-1 if 'nlocals' not in f.keys()
+                   else f['nlocals'])
+        string = '{}:{}'.format(nargs, nlocals)
+        return bytes(string, 'UTF-8')
+
     def form_machamp_hash(self, function):
         basic_blocks = self.get_basic_block_info(function)
         machamp_hash = ''
@@ -59,6 +68,10 @@ class Machamp:
             m_hash = hashlib.md5(m_string)
             mb64 = codecs.encode(m_hash.digest(), 'base64')[:6]
             machamp_hash += mb64.decode('UTF-8')
+        f_string = self.form_machamp_function_string(function)
+        f_hash = hashlib.md5(f_string)
+        fb64 = codecs.encode(f_hash.digest(), 'base64')[:6]
+        machamp_hash += fb64.decode('UTF-8')
         return machamp_hash
 
     def form_machamp_table(self, exclude=[], quiet=False):
