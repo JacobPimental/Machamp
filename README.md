@@ -25,3 +25,11 @@ Based on the fuzzy hashing mechanism <a href="https://github.com/ANSSI-FR/polich
 7. This hash is then appended onto the end of the hash from step 5, this is the Machamp Hash of the function
 
 ## Example
+
+To demonstrate and example of the algorithm, I created a small test program with a main function of 4 basic blocks.
+
+<a href="doc/img/graph.png"><img src="doc/img/graph.png" border="0" /></a>
+
+This graph can be simplified into this:
+
+<a href="doc/img/graph_simple.png"><img src="doc/img/graph_simple.png" border="0" /></a>
