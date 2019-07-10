@@ -16,6 +16,15 @@ class Application:
             self.rename_functions(kwargs['rename'], kwargs['quiet'],
                                   kwargs['threshold'])
 
+        if not kwargs['hash'] == None:
+            self.get_machamp_hash(kwargs['hash'])
+
+    def get_machamp_hash(self, func):
+        self.machamp.r2.cmd('aaa')
+        self.machamp.remove_overlapping_functions()
+        h = self.machamp.form_machamp_hash(func)
+        print('{}: {}'.format(func, h))
+
     def generate_table(self, exclude, output, quiet):
         table = self.machamp.form_machamp_table(exclude, quiet)
         if output:
@@ -114,6 +123,9 @@ if __name__ == '__main__':
                         help=('Rename functions based on machamp table file'+
                               ' [INFILE], excluding functions in EXCLUDE'),
                         metavar=('INFILE', 'EXCLUDE'))
+
+    group.add_argument('-m', '--hash', help=('Creat hash for function FUNC'),
+                       metavar='FUNC')
 
     parser.add_argument('-o', '--output',
                         help='Write output to file out-file')

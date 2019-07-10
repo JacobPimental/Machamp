@@ -84,14 +84,14 @@ class Machamp:
         table = {}
         funcs = self.r2.cmdj('aflj')
         for f in funcs:
-            if (not is_in_exclude(f['name'], exclude) and
+            if (not self.is_in_exclude(f['name'], exclude) and
                 not f['name'].startswith('fcn.')):
                 h = self.form_machamp_hash(f['name'])
                 if not h == None and not h == '':
                     table[f['name']] = h
         return table
 
-    def is_in_exclude(string, patterns):
+    def is_in_exclude(self, string, patterns):
         for p in patterns:
             if fnmatch(string, p):
                 return True
@@ -117,7 +117,7 @@ class Machamp:
         same_functions = []
         for f in functions:
             if (f['maxbound'] == maxbound and
-                not is_in_exclude(f['name'],exclude)):
+                not self.is_in_exclude(f['name'],exclude)):
                 same_functions.append({'name':f['name'], 'offset':f['offset']})
         return same_functions
 
@@ -194,7 +194,7 @@ class Machamp:
     def get_function_renames(self, t1, t2, exclude=[], threshold=80):
         renames = {}
         for k in t1:
-            if not is_in_exclude(k, exclude):
+            if not self.is_in_exclude(k, exclude):
                 most_likely, percent = self.get_most_likely_function(t1[k], t2)
                 if not most_likely in renames.keys() and percent >= threshold:
                     renames[most_likely] = {'fcn':k, 'percent':percent}
