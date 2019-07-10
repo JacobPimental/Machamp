@@ -3,6 +3,7 @@ import hashlib
 import codecs
 import argparse
 import yaml
+from fnmatch import fnmatch
 
 class Machamp:
     def __init__(self, filename=None):
@@ -83,11 +84,18 @@ class Machamp:
         table = {}
         funcs = self.r2.cmdj('aflj')
         for f in funcs:
-            if f['name'] not in exclude:
+            if (not is_in_exclude(f['name'], exclude) and
+                not f['name'].startswith('fcn.')):
                 h = self.form_machamp_hash(f['name'])
                 if not h == None and not h == '':
                     table[f['name']] = h
         return table
+
+    def is_in_exclude(string, patterns):
+        for p in patterns:
+            if fnmatch(string, p):
+                return True
+        return False
 
     def output_machamp_table(self, t, filename):
         f = open(filename, 'w')
@@ -108,7 +116,8 @@ class Machamp:
     def find_functions_that_overlap(self, functions, maxbound, exclude=[]):
         same_functions = []
         for f in functions:
-            if f['maxbound'] == maxbound and f['name'] not in exclude:
+            if (f['maxbound'] == maxbound and
+                not is_in_exclude(f['name'],exclude)):
                 same_functions.append({'name':f['name'], 'offset':f['offset']})
         return same_functions
 
@@ -179,13 +188,13 @@ class Machamp:
         fcn_renames = self.get_function_renames(t1, t2, exclude, threshold)
         for f in fcn_renames.keys():
             orig = fcn_renames[f]['fcn']
-            print('{} is most likely {}'.format(orig, f))
             self.r2.cmd('afn {} @@ {}'.format(f, orig))
+        return fcn_renames
 
     def get_function_renames(self, t1, t2, exclude=[], threshold=80):
         renames = {}
         for k in t1:
-            if k not in exclude:
+            if not is_in_exclude(k, exclude):
                 most_likely, percent = self.get_most_likely_function(t1[k], t2)
                 if not most_likely in renames.keys() and percent >= threshold:
                     renames[most_likely] = {'fcn':k, 'percent':percent}
