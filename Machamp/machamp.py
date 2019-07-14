@@ -14,7 +14,7 @@ class Application:
                                 kwargs['quiet'])
         if not kwargs['rename'] == None:
             self.rename_functions(kwargs['rename'], kwargs['quiet'],
-                                  kwargs['threshold'])
+                                  kwargs['threshold'], kwargs['output'])
 
         if not kwargs['hash'] == None:
             self.get_machamp_hash(kwargs['hash'])
@@ -32,7 +32,7 @@ class Application:
         else:
             print(yaml.dump(table))
 
-    def rename_functions(self, args, quiet, threshold):
+    def rename_functions(self, args, quiet, threshold, output):
         infile = args[0]
         exclude = []
         if len(args) > 1:
@@ -40,8 +40,15 @@ class Application:
         if not threshold:
             threshold = 80
         compare_to = self.machamp.read_machamp_file(infile)
-        self.machamp.rename_functions(compare_to=compare_to, exclude=exclude,
-                                      threshold=threshold)
+        renames = self.machamp.rename_functions(compare_to=compare_to,
+                                                exclude=exclude,
+                                                threshold=threshold)
+        if output:
+            f = open(output)
+            yaml.dump(renames, f)
+            f.close()
+        else:
+            print(yaml.dump(renames))
 
 
     def print_banner(self):
@@ -128,7 +135,7 @@ if __name__ == '__main__':
                        metavar='FUNC')
 
     parser.add_argument('-o', '--output',
-                        help='Write output to file out-file')
+                        help='Write output to file OUTPUT')
 
     parser.add_argument('-q', '--quiet', action='store_true',
                         help='quiet output')

@@ -3,7 +3,7 @@ import hashlib
 import codecs
 import argparse
 import yaml
-from fnmatch import fnmatch
+import fnmatch
 
 class Machamp:
     def __init__(self, filename=None):
@@ -29,31 +29,32 @@ class Machamp:
                 return i
         return -1
 
-    def get_basic_block_call(self, addr):
-        disas = self.r2.cmdj('pdbj @ {}'.format(addr))
+    def get_basic_block_call(self, disas):
         num_call = 0
-        if disas == None:
-            return 0
-        for d in disas:
-            if d['type'] == 'call':
-                #print(hex(d['offset']))
-                #print(d['disasm'])
-                num_call += 1
+        if disas:
+            for d in disas:
+                if 'type' in d.keys()  and d['type'] == 'call':
+                    num_call += 1
         return num_call
 
-    def form_machamp_block_string(self, index, bb):
+    def form_machamp_block_string(self, index, bb, ins):
         block = bb[index]
         fail = (-1 if 'fail' not in block.keys()
                 else self.get_basic_block_id(block['fail'], bb))
         jump = (-1 if 'jump' not in block.keys()
                 else self.get_basic_block_id(block['jump'], bb))
-        call = self.get_basic_block_call(block['addr'])
+        if index == 0:
+            start = 0
+        else:
+            start = bb[index-1]['ninstr']
+        end = block['ninstr'] - 1
+        call = self.get_basic_block_call(ins['ops'][start:end])
         string = '{}:j{};f{};c{}'.format(index, jump, fail, call)
         #print(string)
         return bytes(string, 'UTF-8')
 
-    def form_machamp_function_string(self, function):
-        f = self.r2.cmdj('afij @ {}'.format(function))[0]
+    def form_machamp_function_string(self, func_info):
+        f = func_info
         nargs = (-1 if 'nargs' not in f.keys()
                  else f['nargs'])
         nlocals = (-1 if 'nlocals' not in f.keys()
@@ -61,15 +62,16 @@ class Machamp:
         string = '{}:{}'.format(nargs, nlocals)
         return bytes(string, 'UTF-8')
 
-    def form_machamp_hash(self, function):
-        basic_blocks = self.get_basic_block_info(function)
+    def form_machamp_hash(self, data):
+        basic_blocks = data['bb']
         machamp_hash = ''
         for i in range(len(basic_blocks)):
-            m_string = self.form_machamp_block_string(i, basic_blocks)
+            m_string = self.form_machamp_block_string(i, basic_blocks,
+                                                      data['ins'])
             m_hash = hashlib.md5(m_string)
             mb64 = codecs.encode(m_hash.digest(), 'base64')[:6]
             machamp_hash += mb64.decode('UTF-8')
-        f_string = self.form_machamp_function_string(function)
+        f_string = self.form_machamp_function_string(data['func_info'])
         f_hash = hashlib.md5(f_string)
         fb64 = codecs.encode(f_hash.digest(), 'base64')[:6]
         machamp_hash += fb64.decode('UTF-8')
@@ -83,17 +85,33 @@ class Machamp:
         if not quiet: print('Generating Machamp table...')
         table = {}
         funcs = self.r2.cmdj('aflj')
+        funcs = self.remove_excluded_functions(funcs, exclude)
+        func_dat = []
+        print('Analyzing {} funcs'.format(len(funcs)))
         for f in funcs:
-            if (not self.is_in_exclude(f['name'], exclude) and
-                not f['name'].startswith('fcn.')):
-                h = self.form_machamp_hash(f['name'])
-                if not h == None and not h == '':
-                    table[f['name']] = h
+            func_dat.append(self.generate_necessary_machamp_data(f))
+            #print('Added data for function {}'.format(f))
+
+        table = {f['name']: self.form_machamp_hash(f) for f in func_dat if
+                 self.form_machamp_hash(f)}
         return table
+
+    def generate_necessary_machamp_data(self, func):
+        fname = func['name']
+        bb = self.get_basic_block_info(fname)
+        ins = self.r2.cmdj('pdfj @ {}'.format(fname))
+        return {'bb':bb, 'ins':ins, 'func_info':func, 'name':fname}
+
+    def remove_excluded_functions(self, funcs, patterns):
+        fnames = [f['name'] for f in funcs]
+        for p in patterns:
+            fnames = [n for n in fnames if n not in fnmatch.filter(fnames, p)]
+        flist = [f for f in funcs if f['name'] in fnames]
+        return flist
 
     def is_in_exclude(self, string, patterns):
         for p in patterns:
-            if fnmatch(string, p):
+            if fnmatch.fnmatch(string, p):
                 return True
         return False
 
