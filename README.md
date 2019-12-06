@@ -47,12 +47,14 @@ The `-f` flag specifies which binary to analyze. This argument is not needed whe
 ## Algorithm
 
 1. Each basic block of a function should be given a number, ordered by address.
-2. Each basic block must be translated into a string `NUMBER:j[j];f[f];c[c]`
+2. Each basic block must be translated into a string `NUMBER:j[j];f[f];c[c];l[l];a[a]`
 
     * `NUMBER` is the basic block number
     * `j` is the next block's number for when the jump condition is __true__, -1 if not applicable
     * `f` is the next block's number for when the jump condition is __false__, -1 if not applicable
     * `c` is the number of calls made in a block, 0 if none
+    * `l` is the number of logical instructions in a block, 0 if none
+    * `a` is the number of arithmetic instructions in a block, 0 if none
 
 3. The string is then converted into an md5sum hash and converted to base64
 4. The first 6 characters of this hash are taken, this is the hash of that basic block
@@ -76,21 +78,21 @@ This graph can be simplified into this:
 
 Each block would then be converted into separate strings, along with the function string at the end.
 ```
-1:j3;f2;c0
-2:j4;f-1;c1
-3:j4;f-1;c1
-4:j-1;f-1;c0
+1:j3;f2;c0;l0;a1
+2:j4;f-1;c1;l0;a0
+3:j4;f-1;c1;l0;a1
+4:j-1;f-1;c0;l0;a0
 2:2
 ```
 Each of these strings would be converted into hashes
 ```
-sgMmuT
-bnceyU
-5gnnNO
-UgsW4t
+xuOuty
+XfIs5/
+lq5DLC
+QTOgPV
 W1NoZu
 ```
 Which then gets concatenated together, forming the Machamp hash of the function.
-`sgMmuTbnceyU5gnnNOUgsW4tW1NoZu`
+`xuOutyXfIs5/lq5DLCQTOgPVW1NoZu`
 
-This hash can then be used as a comparison to other functions for comparison and to see how closely they relate. 
+This hash can then be used as a comparison to other functions to see how closely they relate. 

@@ -4,21 +4,11 @@ import codecs
 import argparse
 import yaml
 import fnmatch
+import machamp_utils
 
 class Machamp:
-    def __init__(self, filename=None):
-        if not filename:
-            self.r2 = r2pipe.open()
-        else:
-            self.r2 = r2pipe.open(filename)
-
-    def get_function_info(self):
-        functions = self.r2.cmdj('aflj')
-        return functions
-
-    def get_basic_block_info(self, function):
-        basic_blocks = self.r2.cmdj('afbj @ {}'.format(function))
-        return basic_blocks
+    def __init__(self, flags=[], filename=None):
+       self.utils = machamp_utils.MachampUtils(flags, filename)
 
     def get_basic_block_id(self, addr, bb):
         if bb == None:
@@ -29,13 +19,22 @@ class Machamp:
                 return i
         return -1
 
-    def get_basic_block_call(self, disas):
-        num_call = 0
+    def get_basic_block_types(self, disas):
+        types = {'call': 0,
+                 'logical': 0,
+                 'arithmetic': 0}
         if disas:
             for d in disas:
-                if 'type' in d.keys()  and d['type'] == 'call':
-                    num_call += 1
-        return num_call
+                if 'type' in d.keys():
+                    t = d['type']
+                    if t == 'call':
+                        types['call'] += 1
+                    elif t in ['and', 'not', 'or', 'xor']:
+                        types['logical'] += 1
+                    elif t in ['inc','dec','add','sub',
+                               'mul','imul','div','idiv']:
+                        types['arithmetic'] += 1
+        return types
 
     def form_machamp_block_string(self, index, bb, ins):
         block = bb[index]
@@ -48,9 +47,10 @@ class Machamp:
         else:
             start = bb[index-1]['ninstr']
         end = block['ninstr'] - 1
-        call = self.get_basic_block_call(ins['ops'][start:end])
-        string = '{}:j{};f{};c{}'.format(index, jump, fail, call)
-        #print(string)
+        types = self.get_basic_block_types(ins['ops'][start:end])
+        string = '{}:j{};f{};c{};l{};a{}'.format(index, jump, fail, types['call'],
+                                                 types['logical'],
+                                                 types['arithmetic'])
         return bytes(string, 'UTF-8')
 
     def form_machamp_function_string(self, func_info):
@@ -77,20 +77,19 @@ class Machamp:
         machamp_hash += fb64.decode('UTF-8')
         return machamp_hash
 
-    def form_machamp_table(self, exclude=[], quiet=False):
-        if not quiet: print('Running aaa first, this may take a while...')
-        self.r2.cmd('aaa')
+    def form_machamp_table(self, exclude=[], analyze_level='aaa', quiet=False):
+        if not quiet: print('Running {} first, this may take a while...'.format(analyze_level))
+        self.utils.analyze_binary(analyze_level)
         if not quiet: print('Removing any overlapping functions...')
-        self.remove_overlapping_functions()
+        self.utils.remove_overlapping_functions()
         if not quiet: print('Generating Machamp table...')
         table = {}
-        funcs = self.r2.cmdj('aflj')
+        funcs = self.utils.get_function_info()
         funcs = self.remove_excluded_functions(funcs, exclude)
         func_dat = []
         print('Analyzing {} funcs'.format(len(funcs)))
         for f in funcs:
             func_dat.append(self.generate_necessary_machamp_data(f))
-            #print('Added data for function {}'.format(f))
 
         table = {f['name']: self.form_machamp_hash(f) for f in func_dat if
                  self.form_machamp_hash(f)}
@@ -98,8 +97,8 @@ class Machamp:
 
     def generate_necessary_machamp_data(self, func):
         fname = func['name']
-        bb = self.get_basic_block_info(fname)
-        ins = self.r2.cmdj('pdfj @ {}'.format(fname))
+        bb = self.utils.get_basic_block_info(fname)
+        ins = self.utils.get_function_instructions(fname)
         return {'bb':bb, 'ins':ins, 'func_info':func, 'name':fname}
 
     def remove_excluded_functions(self, funcs, patterns):
@@ -130,35 +129,6 @@ class Machamp:
             print(e)
             f.close()
             return {}
-
-    def find_functions_that_overlap(self, functions, maxbound, exclude=[]):
-        same_functions = []
-        for f in functions:
-            if (f['maxbound'] == maxbound and
-                not self.is_in_exclude(f['name'],exclude)):
-                same_functions.append({'name':f['name'], 'offset':f['offset']})
-        return same_functions
-
-    def sort_functions(self, overlap):
-        offsets = [f['offset'] for f in overlap]
-        offsets.sort()
-        return offsets
-
-    def remove_overlapping_functions(self):
-        functions = self.r2.cmdj('afllj')
-        check = []
-        for f in functions:
-            found = [{'name':f['name'], 'offset':f['offset']}]
-            overlap = self.find_functions_that_overlap(functions,
-                                                       f['maxbound'],
-                                                       [f['name']])
-            found += overlap
-            if len(found) < 2:
-                continue
-            ordered_found = self.sort_functions(found)
-            for i in range(len(ordered_found)-1):
-                self.r2.cmd('afu {} @@={}'.format(ordered_found[i+1],
-                                                  ordered_found[i]))
 
 
     def machamp_compare(self, a, b):
@@ -206,7 +176,7 @@ class Machamp:
         fcn_renames = self.get_function_renames(t1, t2, exclude, threshold)
         for f in fcn_renames.keys():
             orig = fcn_renames[f]['fcn']
-            self.r2.cmd('afn {} @@ {}'.format(f, orig))
+            self.utils.rename_function(f, orig)
         return fcn_renames
 
     def get_function_renames(self, t1, t2, exclude=[], threshold=80):
@@ -219,8 +189,5 @@ class Machamp:
                 elif percent >= threshold and percent > renames[most_likely]['percent']:
                     renames[most_likely] = {'fcn':k, 'percent':percent}
         return renames
-
-    def get_filename(self):
-        return self.r2.cmd('o.').strip()
 
 
